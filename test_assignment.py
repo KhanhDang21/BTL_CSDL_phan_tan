@@ -17,7 +17,7 @@ ACTUAL_ROWS_IN_INPUT_FILE = 20  # Number of lines in the input file
 import mysql.connector
 import traceback
 import testHelper
-import Interface as MyAssignment
+import Group9_Assignment as MyAssignment
 
 if __name__ == '__main__':
     try:
