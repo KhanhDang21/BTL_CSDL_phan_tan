@@ -88,15 +88,11 @@ def getCountroundrobinpartition(ratingstablename, numberofpartitions, openconnec
     '''
     cur = openconnection.cursor()
     countList = []
-    
-    # MySQL doesn't support ROW_NUMBER() in older versions, use a different approach
-    # Get total count first
+
     cur.execute(f"SELECT COUNT(*) FROM {ratingstablename}")
     total_rows = int(cur.fetchone()[0])
     
-    # Calculate expected count for each partition
     for i in range(0, numberofpartitions):
-        # Calculate count using integer division and modulo
         expected_count = total_rows // numberofpartitions
         if i < total_rows % numberofpartitions:
             expected_count += 1
