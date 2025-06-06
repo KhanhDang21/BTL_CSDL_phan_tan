@@ -1,5 +1,5 @@
 #
-# Tester for the assignment1 using MySQL
+# Tester for the assignment1 using PostgreSQL
 #
 
 DATABASE_NAME = 'movie_rating'
@@ -11,10 +11,10 @@ RROBIN_TABLE_PREFIX = 'rrobin_part'
 USER_ID_COLNAME = 'userid'
 MOVIE_ID_COLNAME = 'movieid'
 RATING_COLNAME = 'rating'
-INPUT_FILE_PATH = 'test_data.dat'
-ACTUAL_ROWS_IN_INPUT_FILE = 20  # Number of lines in the input file
+INPUT_FILE_PATH = 'ratings.dat'
+ACTUAL_ROWS_IN_INPUT_FILE = 10000054  # Number of lines in the input file
 
-import mysql.connector
+import psycopg2
 import traceback
 import testHelper
 import Group9_Assignment as TestAssignment
@@ -71,7 +71,7 @@ if __name__ == '__main__':
             if choice == '':
                 testHelper.deleteAllPublicTables(conn)
 
-            if conn.is_connected():
+            if not conn.closed:
                 conn.close()
 
     except Exception as detail:

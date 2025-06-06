@@ -1,6 +1,5 @@
 import traceback
-import mysql.connector
-from mysql.connector import errorcode
+import psycopg2
 
 RANGE_TABLE_PREFIX = 'range_part'
 RROBIN_TABLE_PREFIX = 'rrobin_part'
@@ -10,48 +9,53 @@ RATING_COLNAME = 'rating'
 
 # SETUP Functions
 def createdb(dbname):
-    try:
-        con = getopenconnection(dbname=None)
-        cur = con.cursor()
-
-        cur.execute(f"SHOW DATABASES LIKE '{dbname}'")
-        result = cur.fetchone()
-
-        if not result:
-            cur.execute(f"CREATE DATABASE {dbname}")
-        else:
-            print(f'A database named "{dbname}" already exists')
-
-        cur.close()
-        con.close()
-    except mysql.connector.Error as err:
-        print("Error: {}".format(err))
-
-def delete_db(dbname):
-    con = getopenconnection(dbname=None)
+    """
+    We create a DB by connecting to the default user and database of Postgres
+    The function first checks if an existing database exists for a given name, else creates it.
+    :return:None
+    """
+    # Connect to the default database
+    con = getopenconnection()
+    con.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     cur = con.cursor()
-    cur.execute(f"DROP DATABASE IF EXISTS {dbname}")
+
+    # Check if an existing database with the same name exists
+    cur.execute('SELECT COUNT(*) FROM pg_catalog.pg_database WHERE datname=\'%s\'' % (dbname,))
+    count = cur.fetchone()[0]
+    if count == 0:
+        cur.execute('CREATE DATABASE %s' % (dbname,))  # Create the database
+    else:
+        print('A database named "{0}" already exists'.format(dbname))
+
+    # Clean up
     cur.close()
     con.close()
 
+def delete_db(dbname):
+    con = getopenconnection(dbname = 'postgres')
+    con.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
+    cur = con.cursor()
+    cur.execute('drop database ' + dbname)
+    cur.close()
+    con.close()
+
+
 def deleteAllPublicTables(openconnection):
     cur = openconnection.cursor()
-    cur.execute("SHOW TABLES")
-    tables = cur.fetchall()
-    for (table_name,) in tables:
-        cur.execute(f"DROP TABLE IF EXISTS `{table_name}`")
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")
+    l = []
+    for row in cur:
+        l.append(row[0])
+    for tablename in l:
+        cur.execute("drop table if exists {0} CASCADE".format(tablename))
+
     cur.close()
 
-def getopenconnection(user='root', password='21122004dug', dbname='movie_rating'):
-    config = {
-        'user': 'root',
-        'password': '21122004dug',
-        'host': 'localhost',
-    }
-    if dbname:
-        config['database'] = dbname
-    return mysql.connector.connect(**config)
+def getopenconnection(user='postgres', password='21122004', dbname='postgres'):
+    return psycopg2.connect("dbname='" + dbname + "' user='" + user + "' host='localhost' password='" + password + "'")
 
+
+####### Tester support
 def getCountrangepartition(ratingstablename, numberofpartitions, openconnection):
     """
     Get number of rows for each partition
@@ -88,15 +92,11 @@ def getCountroundrobinpartition(ratingstablename, numberofpartitions, openconnec
     '''
     cur = openconnection.cursor()
     countList = []
-
-    cur.execute(f"SELECT COUNT(*) FROM {ratingstablename}")
-    total_rows = int(cur.fetchone()[0])
-    
     for i in range(0, numberofpartitions):
-        expected_count = total_rows // numberofpartitions
-        if i < total_rows % numberofpartitions:
-            expected_count += 1
-        countList.append(expected_count)
+        cur.execute(
+            "select count(*) from (select *, row_number() over () from {0}) as temp where (row_number-1)%{1}= {2}".format(
+                ratingstablename, numberofpartitions, i))
+        countList.append(int(cur.fetchone()[0]))
 
     cur.close()
     return countList
@@ -104,7 +104,7 @@ def getCountroundrobinpartition(ratingstablename, numberofpartitions, openconnec
 # Helpers for Tester functions
 def checkpartitioncount(cursor, expectedpartitions, prefix):
     cursor.execute(
-        "SELECT COUNT(table_name) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name LIKE '{0}%';".format(
+        "SELECT COUNT(table_name) FROM information_schema.tables WHERE table_schema = 'public' AND table_name LIKE '{0}%';".format(
             prefix))
     count = int(cursor.fetchone()[0])
     if count != expectedpartitions:  raise Exception(
