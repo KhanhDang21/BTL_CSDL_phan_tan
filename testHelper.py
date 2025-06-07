@@ -49,6 +49,7 @@ def deleteAllPublicTables(openconnection):
     for tablename in l:
         cur.execute("drop table if exists {0} CASCADE".format(tablename))
 
+    openconnection.commit()
     cur.close()
 
 def getopenconnection(user='postgres', password='21122004', dbname='postgres'):
